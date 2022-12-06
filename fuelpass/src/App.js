@@ -1,51 +1,3 @@
-## Getting Started
-
-1. Sign up for an [AWS Account](https://aws.amazon.com/premiumsupport/knowledge-center/create-and-activate-aws-account)
-
-2. Make sure you have the [Node.js 18.x](https://nodejs.org/en/) installed
-
-3. Install `aws-cli` version 2 for your operating system. See the guide [here](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html#getting-started-install-instructions). 
-
-4. Create an IAM user with Admin permission or use the temperory credentails of a SSO user. Configure  credentials in the local machine. 
-```sh
-export AWS_ACCESS_KEY_ID=""
-export AWS_SECRET_ACCESS_KEY=""
-```
-
-5. You shouldn't get any errors when you execute `aws s3 ls` That will confirm AWS credetials are locally setup correctly. 
-
-6. Create a new react application with create-react-app. `npx create-react-app fuelpass`
-
-7. Install bootstrap. 
-``` sh
-cd fuelpass
-npm install bootstrap
-npm i react-toastify
-``` 
-
-8. Update the `src/index.js` with the following code snippet
-
-```javascript
-import React from 'react';
-import ReactDOM from 'react-dom/client';
-import './index.css';
-import App from './App';
-
-// Bootstrap CSS
-import "bootstrap/dist/css/bootstrap.min.css";
-// Bootstrap Bundle JS
-import "bootstrap/dist/js/bootstrap.bundle.min";
-
-const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
-```
-
-9. Update the `src/app.js` with the following code snippet
-```javascript
 import './App.css';
 import 'react-toastify/dist/ReactToastify.css';
 import React, { useState, useEffect } from 'react';
@@ -155,6 +107,5 @@ function App() {
 
   );
 }
-export default App;
-```
 
+export default App;
