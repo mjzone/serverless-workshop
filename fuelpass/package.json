@@ -14,6 +14,8 @@
     "web-vitals": "^2.1.4"
   },
   "scripts": {
+    "deploy": "react-scripts build && cd cdk && tsc && cdk deploy",
+    "postdeploy": "aws cloudfront create-invalidation --distribution-id EPJYXHWNFW509 --paths '/*'",
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",

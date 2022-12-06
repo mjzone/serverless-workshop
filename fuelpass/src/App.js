@@ -51,7 +51,7 @@ function App() {
       <main className="form-signin w-100 m-auto">
         {!user && !session && (
           <form onSubmit={signIn}>
-            <h4 className="h3 mb-3 fw-normal">Login </h4>
+            <h4 className="h3 mb-3 fw-normal">Login - Edited</h4>
             <div className="form-floating mb-2">
               <input type="text" className="form-control" id="floatingInput" placeholder="xxxxx" />
               <label htmlFor="floatingInput">Phone Number (+94)</label>
