@@ -14,16 +14,18 @@ export AWS_SECRET_ACCESS_KEY=""
 
 5. You shouldn't get any errors when you execute `aws s3 ls` That will confirm AWS credetials are locally setup correctly. 
 
-6. Create a new react application with create-react-app. `npx create-react-app fuelpass`
+## Step 01 - Frontend with React
 
-7. Install bootstrap. 
+1. Create a new react application with create-react-app. `npx create-react-app fuelpass`
+
+2. Install bootstrap. 
 ``` sh
 cd fuelpass
 npm install bootstrap
 npm i react-toastify
 ``` 
 
-8. Update the `src/index.js` with the following code snippet
+3. Update the `src/index.js` with the following code snippet
 
 ```javascript
 import React from 'react';
@@ -44,7 +46,7 @@ root.render(
 );
 ```
 
-9. Update the `src/app.js` with the following code snippet
+4. Update the `src/app.js` with the following code snippet
 ```javascript
 import './App.css';
 import 'react-toastify/dist/ReactToastify.css';
@@ -158,3 +160,4 @@ function App() {
 export default App;
 ```
 
+5. Go to the `fuelpass` folder and run `npm run start` to start the react web server and preview the frontend 
