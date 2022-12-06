@@ -213,3 +213,5 @@
   export default App;
 
 ```
+
+3. Deploy the changes `npm run deploy` at the `fuelpass` folder

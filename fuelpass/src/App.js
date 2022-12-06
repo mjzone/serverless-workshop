@@ -86,7 +86,7 @@ function App() {
       setOtp('');
       toast.success("You have logged out successfully");
     } else {
-      setMessage("You are NOT logged in");
+      toast.error("You are NOT logged in");
     }
   };
 
