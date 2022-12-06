@@ -1,16 +1,6 @@
-## Step 02 - Provisioning CloudFront and S3 with the runtime code
+## Step 03 - Provisioning UserPool and Lambda Triggers
 
-1. Install aws-cdk cli version 2 and typescript globally
-``` sh
-sudo npm install -g typescript@4.9.3 aws-cdk@2.53.0
-```
-
-2. inside the `fuelpass` directory create a new directory called `cdk`. Change directory to the `cdk` and create a new cdk typescript project with the following command
-``` sh
-cdk init app --language typescript
-```
-
-3. Add UserPool and UserPool Client CDK code to the `cdk/lib/cdk-stack.ts` 
+1. Add UserPool and UserPool Client CDK code to the `cdk/lib/cdk-stack.ts` 
 ```typescript
     ...
     // Cognito userpool
@@ -33,7 +23,7 @@ cdk init app --language typescript
 }
 ```
 
-4. Add the Lambda Triggers for the Cognito User Pool. Update `cdk/lib/cdk-stack.ts` the code as follows. 
+2. Add the Lambda Triggers for the Cognito User Pool. Update `cdk/lib/cdk-stack.ts` the code as follows. 
 ``` typescript
 
     // VerifyAuthChallengeResponse lambda
@@ -92,9 +82,9 @@ cdk init app --language typescript
     });
 ```
 
-5. Create a new folder `functions` inside the `cdk` folder and add the below folders and runtime code for the lambda triggers
+3. Create a new folder `functions` inside the `cdk` folder and add the below folders and runtime code for the lambda triggers
 
-6. `cdk/functions/createAuthChallenge/handler.ts` runtime code
+4. `cdk/functions/createAuthChallenge/handler.ts` runtime code
 ```typescript
 const AWS = require('aws-sdk');
 
@@ -144,7 +134,7 @@ exports.handler = (event: any, context: any, callback: any) => {
 };
 ```
 
-7. `cdk/functions/defineAuthChallenge/handler.ts` runtime code
+5. `cdk/functions/defineAuthChallenge/handler.ts` runtime code
 ```typescript
     exports.handler = (event:any, context:any) => {
     // No existing cognito session
@@ -171,7 +161,7 @@ exports.handler = (event: any, context: any, callback: any) => {
 
 ```
 
-8. `cdk/functions/verifyAuthChallengeResponse/handler.ts` runtime code
+6. `cdk/functions/verifyAuthChallengeResponse/handler.ts` runtime code
    ```typescript
     exports.handler = (event: any, context: any) => {
         console.log(event);
@@ -186,7 +176,7 @@ exports.handler = (event: any, context: any, callback: any) => {
     };
    ```
 
-9. `cdk/functions/preSignUp/handler.ts` runtime code
+7. `cdk/functions/preSignUp/handler.ts` runtime code
    ```typescript
     exports.handler = (event: any, context: any, callback: any) => {
         // Confirm the user
@@ -207,7 +197,7 @@ exports.handler = (event: any, context: any, callback: any) => {
     };
    ```
 
-10.  In the `fuelpass/cdk/lib/cdk-stack.ts` file, below the `createAuthChallengeLambda` lambda infrasturcture code, add the permission policy for SNS.
+8.  In the `fuelpass/cdk/lib/cdk-stack.ts` file, below the `createAuthChallengeLambda` lambda infrasturcture code, add the permission policy for SNS.
 ```typescript
     ...
     // Create a permission policy statement
@@ -225,8 +215,8 @@ exports.handler = (event: any, context: any, callback: any) => {
     ...
 ```
 
-11. Install ESBuild as a dev dependency to package typescript lambda code inside the `cdk` folder
+9. Install ESBuild as a dev dependency to package typescript lambda code inside the `cdk` folder
     `npm install --save-dev esbuild@0`
 
 
-12. Execute `npm run deploy` at the `fuelpass` folder and check if the lambda triggers are set at the cognito userpool
+10. Execute `npm run deploy` at the `fuelpass` folder and check if the lambda triggers are set at the cognito userpool
