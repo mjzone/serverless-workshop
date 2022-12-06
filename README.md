@@ -46,7 +46,15 @@ root.render(
 );
 ```
 
-4. Update the `src/app.js` with the following code snippet
+4. Update the `src/app.css` as follows
+```css
+.form-signin {
+  max-width: 330px;
+  padding: 15px;
+}
+```
+
+5. Update the `src/app.js` with the following code snippet
 ```javascript
 import './App.css';
 import 'react-toastify/dist/ReactToastify.css';
@@ -160,4 +168,4 @@ function App() {
 export default App;
 ```
 
-5. Go to the `fuelpass` folder and run `npm run start` to start the react web server and preview the frontend 
+6. Go to the `fuelpass` folder and run `npm run start` to start the react web server and preview the frontend 
