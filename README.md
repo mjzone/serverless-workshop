@@ -1,4 +1,4 @@
-## Step-0 - Prerequisites
+## Prerequisites
 
 1. Sign up for an [AWS Account](https://aws.amazon.com/premiumsupport/knowledge-center/create-and-activate-aws-account)
 
