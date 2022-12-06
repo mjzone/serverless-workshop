@@ -2,9 +2,9 @@ import './App.css';
 import 'react-toastify/dist/ReactToastify.css';
 import React, { useState, useEffect } from 'react';
 import { ToastContainer, toast } from 'react-toastify';
+import { Auth, API } from "aws-amplify";
 
 function App() {
-  const [message, setMessage] = useState('');
   const [user, setUser] = useState(null);
   const [session, setSession] = useState(null);
   const [otp, setOtp] = useState('');
@@ -17,16 +17,62 @@ function App() {
   }, []);
 
   const verifyAuth = () => {
-    console.log("Verify Auth");
-  }
+    Auth.currentAuthenticatedUser()
+      .then((user) => {
+        setUser(user);
+        setSession(null);
+        toast.success("You have logged in successfully");
+      })
+      .catch((err) => {
+        console.error(err);
+        toast.error("You are NOT logged in");
+      });
+  };
+
 
   const signIn = () => {
-    console.log("Signed in");
-    //toast.success("Signed in successfully!");
+    toast.success("Verifying number (Country code +XX needed)");
+    Auth.signIn(number)
+      .then((result) => {
+        setSession(result);
+        toast("Enter OTP number");
+      })
+      .catch((e) => {
+        if (e.code === 'UserNotFoundException') {
+          signUp();
+        } else if (e.code === 'UsernameExistsException') {
+          toast("Enter OTP number");
+          signIn();
+        } else {
+          console.log(e.code);
+          console.error(e);
+        }
+      });
+  };
+
+  const signUp = async () => {
+    const result = await Auth.signUp({
+      username: number,
+      password,
+      attributes: {
+        phone_number: number,
+      },
+    }).then(() => signIn());
+    return result;
   };
 
   const verifyOtp = () => {
-    console.log("OTP verified");
+    Auth.sendCustomChallengeAnswer(session, otp)
+      .then((user) => {
+        setUser(user);
+        setSession(null);
+        toast.success("You have logged in successfully");
+      })
+      .catch((err) => {
+        setOtp('');
+        console.log(err);
+        toast.error(err.message);
+      });
   };
 
   const saveUserDetails = () => {
@@ -34,8 +80,14 @@ function App() {
   };
 
   const signOut = () => {
-    console.log("Signed out");
-    toast.success("Signed out successfully!");
+    if (user) {
+      Auth.signOut();
+      setUser(null);
+      setOtp('');
+      toast.success("You have logged out successfully");
+    } else {
+      setMessage("You are NOT logged in");
+    }
   };
 
   return (
@@ -53,7 +105,12 @@ function App() {
           <form onSubmit={signIn}>
             <h4 className="h3 mb-3 fw-normal">Login - Edited</h4>
             <div className="form-floating mb-2">
-              <input type="text" className="form-control" id="floatingInput" placeholder="xxxxx" />
+              <input
+                type="text"
+                className="form-control"
+                id="floatingInput"
+                placeholder="xxxxx"
+                onChange={(event) => setNumber(event.target.value)} />
               <label htmlFor="floatingInput">Phone Number (+94)</label>
             </div>
             <button className="w-100 btn btn-md btn-secondary" type="submit">Get OTP</button>
@@ -63,7 +120,14 @@ function App() {
           <form onSubmit={verifyOtp}>
             <h4 className="h3 mb-3 fw-normal">OTP</h4>
             <div className="form-floating mb-2">
-              <input type="text" className="form-control" id="floatingInput" placeholder="xxxxx" />
+              <input
+                type="text"
+                className="form-control"
+                id="floatingInput"
+                placeholder="xxxxx"
+                onChange={(event) => setOtp(event.target.value)}
+                value={otp}
+              />
               <label htmlFor="floatingInput">Enter OTP</label>
             </div>
             <button className="w-100 btn btn-lg btn-secondary" type="submit">Confirm</button>
@@ -96,7 +160,7 @@ function App() {
                 className="form-control"
                 id="floatingInput"
                 placeholder="xxxxx"
-                onChange={(e) => setUserProfile({ ...userProfile, nic: e.target.value })} />/>
+                onChange={(e) => setUserProfile({ ...userProfile, nic: e.target.value })} />
               <label htmlFor="floatingInput">Address</label>
             </div>
             <button className="w-100 btn btn-lg btn-secondary" type="submit">Save</button>

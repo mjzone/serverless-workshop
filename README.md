@@ -1,222 +1,215 @@
-## Step 03 - Provisioning UserPool and Lambda Triggers
+## Step 04 - Manual configure Auth category in the Frontend
 
-1. Add UserPool and UserPool Client CDK code to the `cdk/lib/cdk-stack.ts` 
+1. Under `fuelpass` folder install `aws-amplify` javascript library
+  ```sh
+     npm install aws-amplify
+  ```
+2. Go to `fuelpass/src/index.js`
 ```typescript
-    ...
-    // Cognito userpool
-    const userPool = new UserPool(this, 'UserPool', {
-      selfSignUpEnabled: true,
-      signInAliases: {
-        phone: true
-      },
-      standardAttributes: {
-        phoneNumber: { required: true, mutable: true }
-      }
-    });
+  ...
+  import { Amplify } from 'aws-amplify';
 
-    // Cognito userpool web client
-    const userPoolWebClient = userPool.addClient('UserPoolWebClient', {
-      authFlows: { custom: true }
-    });
-    ...
-  }
-}
+  // Manually configure amplify 
+  Amplify.configure({
+    Auth: {
+      // REQUIRED - Amazon Cognito Region
+      region: 'us-east-1',
+
+      // OPTIONAL - Amazon Cognito User Pool ID
+      userPoolId: '<userpool_id>',
+
+      // OPTIONAL - Amazon Cognito Web Client ID (26-char alphanumeric string)
+      userPoolWebClientId: '<userpool_client_id>',
+
+      // OPTIONAL - Enforce user authentication prior to accessing AWS resources or not
+      mandatorySignIn: true,
+
+      // OPTIONAL - This is used when autoSignIn is enabled for Auth.signUp
+      // 'code' is used for Auth.confirmSignUp, 'link' is used for email link verification
+      signUpVerificationMethod: 'code', // 'code' | 'link' 
+
+      // OPTIONAL - Manually set the authentication flow type. Default is 'USER_SRP_AUTH'
+      authenticationFlowType: 'CUSTOM_AUTH'
+    }
+  });
 ```
 
-2. Add the Lambda Triggers for the Cognito User Pool. Update `cdk/lib/cdk-stack.ts` the code as follows. 
-``` typescript
+3. Goto `fuelpass/src/App.js` and update the code as follows
+```javascript
+  import './App.css';
+  import 'react-toastify/dist/ReactToastify.css';
+  import React, { useState, useEffect } from 'react';
+  import { ToastContainer, toast } from 'react-toastify';
+  import { Auth, API } from "aws-amplify";
 
-    // VerifyAuthChallengeResponse lambda
-    const verifyAuthChallengeResponseLambda = new NodejsFunction(this, 'VerifyAuthChallengeResponseLambda', {
-      entry: join(__dirname, `../functions/verifyAuthChallengeResponse/handler.js`),
-      runtime: Runtime.NODEJS_14_X,
-      handler: "handler"
-    });
+  function App() {
+    const [user, setUser] = useState(null);
+    const [session, setSession] = useState(null);
+    const [otp, setOtp] = useState('');
+    const [number, setNumber] = useState('');
+    const password = Math.random().toString(10) + 'Abc#';
+    const [userProfile, setUserProfile] = useState({ name: "", nic: "", address: "" });
 
-    // PreSignUp lambda
-    const preSignUpLambda = new NodejsFunction(this, 'PreSignUpLambda', {
-      entry: join(__dirname, `../functions/preSignUp/handler.js`),
-      runtime: Runtime.NODEJS_14_X,
-      handler: "handler"
-    });
+    useEffect(() => {
+      verifyAuth();
+    }, []);
 
-     // CreateAuthChallenge lambda
-    const createAuthChallengeLambda = new NodejsFunction(this, 'CreateAuthChallengeLambda', {
-      entry: join(__dirname, `../functions/createAuthChallenge/handler.js`),
-      runtime: Runtime.NODEJS_14_X,
-      handler: "handler",
-      bundling: {
-        externalModules: [
-          'aws-sdk'
-        ]
-      }
-    });
+    const verifyAuth = () => {
+      Auth.currentAuthenticatedUser()
+        .then((user) => {
+          setUser(user);
+          setSession(null);
+          toast.success("You have logged in successfully");
+        })
+        .catch((err) => {
+          console.error(err);
+          toast.error("You are NOT logged in");
+        });
+    };
 
-    // DefineAuthChallenge lambda
-    const defineAuthChallengeLambda = new NodejsFunction(this, 'DefineAuthChallengeLambda', {
-      entry: join(__dirname, `../functions/defineAuthChallenge/handler.js`),
-      runtime: Runtime.NODEJS_14_X,
-      handler: "handler"
-    });
 
-    // Cognito userpool
-    const userPool = new UserPool(this, 'UserPool', {
-      selfSignUpEnabled: true,
-      signInAliases: {
-        phone: true
-      },
-      standardAttributes: {
-        phoneNumber: { required: true, mutable: true }
-      },
-      lambdaTriggers: {
-        defineAuthChallenge: defineAuthChallengeLambda,
-        createAuthChallenge: createAuthChallengeLambda,
-        verifyAuthChallengeResponse: verifyAuthChallengeResponseLambda,
-        preSignUp: preSignUpLambda
-      }
-    });
+    const signIn = () => {
+      toast.success("Verifying number (Country code +XX needed)");
+      Auth.signIn(number)
+        .then((result) => {
+          setSession(result);
+          toast("Enter OTP number");
+        })
+        .catch((e) => {
+          if (e.code === 'UserNotFoundException') {
+            signUp();
+          } else if (e.code === 'UsernameExistsException') {
+            toast("Enter OTP number");
+            signIn();
+          } else {
+            console.log(e.code);
+            console.error(e);
+          }
+        });
+    };
 
-    // Cognito userpool web client
-    const userPoolWebClient = userPool.addClient('UserPoolWebClient', {
-      authFlows: { custom: true }
-    });
-```
-
-3. Create a new folder `functions` inside the `cdk` folder and add the below folders and runtime code for the lambda triggers
-
-4. `cdk/functions/createAuthChallenge/handler.ts` runtime code
-```typescript
-const AWS = require('aws-sdk');
-
-exports.handler = (event: any, context: any, callback: any) => {
-    //Create a random number for otp
-    const challengeAnswer = Math.random().toString(10).substr(2, 6);
-    const phoneNumber = event.request.userAttributes.phone_number;
-
-    //For Debugging
-    console.log(event, context);
-
-    //sns sms
-    const sns = new AWS.SNS({ region: 'us-east-1' });
-    sns.publish(
-        {
-            Message: 'Your OTP: ' + challengeAnswer,
-            PhoneNumber: phoneNumber,
-            MessageStructure: 'string',
-            MessageAttributes: {
-                'AWS.SNS.SMS.SenderID': {
-                    DataType: 'String',
-                    StringValue: 'AMPLIFY',
-                },
-                'AWS.SNS.SMS.SMSType': {
-                    DataType: 'String',
-                    StringValue: 'Transactional',
-                },
-            },
+    const signUp = async () => {
+      const result = await Auth.signUp({
+        username: number,
+        password,
+        attributes: {
+          phone_number: number,
         },
-        function (err: any, data: any) {
-            if (err) {
-                console.log(err.stack);
-                console.log(data);
-                return;
-            }
-            console.log(`SMS sent to ${phoneNumber} and otp = ${challengeAnswer}`);
-            return data;
-        }
-    );
-
-    //set return params
-    event.response.privateChallengeParameters = {};
-    event.response.privateChallengeParameters.answer = challengeAnswer;
-    event.response.challengeMetadata = 'CUSTOM_CHALLENGE';
-
-    callback(null, event);
-};
-```
-
-5. `cdk/functions/defineAuthChallenge/handler.ts` runtime code
-```typescript
-    exports.handler = (event:any, context:any) => {
-    // No existing cognito session
-    if (event.request.session.length === 0) {
-        event.response.issueTokens = false;
-        event.response.failAuthentication = false;
-        event.response.challengeName = 'CUSTOM_CHALLENGE';
-    }
-    // Existing cognito session is available
-    else if (
-        event.request.session.length === 1 &&
-        event.request.session[0].challengeName === 'CUSTOM_CHALLENGE' &&
-        event.request.session[0].challengeResult === true
-    ) {
-        event.response.issueTokens = true;
-        event.response.failAuthentication = false;
-    }
-    else {
-        event.response.issueTokens = false;
-        event.response.failAuthentication = true;
-    }
-    context.done(null, event);
-};
-
-```
-
-6. `cdk/functions/verifyAuthChallengeResponse/handler.ts` runtime code
-   ```typescript
-    exports.handler = (event: any, context: any) => {
-        console.log(event);
-        if (
-            event.request.privateChallengeParameters.answer === event.request.challengeAnswer
-        ) {
-            event.response.answerCorrect = true;
-        } else {
-            event.response.answerCorrect = false;
-        }
-        context.done(null, event);
+      }).then(() => signIn());
+      return result;
     };
-   ```
 
-7. `cdk/functions/preSignUp/handler.ts` runtime code
-   ```typescript
-    exports.handler = (event: any, context: any, callback: any) => {
-        // Confirm the user
-        event.response.autoConfirmUser = true;
-
-        // Set the email as verified if it is in the request
-        if (event.request.userAttributes.hasOwnProperty('email')) {
-            event.response.autoVerifyEmail = true;
-        }
-
-        // Set the phone number as verified if it is in the request
-        if (event.request.userAttributes.hasOwnProperty('phone_number')) {
-            event.response.autoVerifyPhone = true;
-        }
-
-        // Return to Amazon Cognito
-        callback(null, event);
+    const verifyOtp = () => {
+      Auth.sendCustomChallengeAnswer(session, otp)
+        .then((user) => {
+          setUser(user);
+          setSession(null);
+          toast.success("You have logged in successfully");
+        })
+        .catch((err) => {
+          setOtp('');
+          console.log(err);
+          toast.error(err.message);
+        });
     };
-   ```
 
-8.  In the `fuelpass/cdk/lib/cdk-stack.ts` file, below the `createAuthChallengeLambda` lambda infrasturcture code, add the permission policy for SNS.
-```typescript
-    ...
-    // Create a permission policy statement
-    const snsPublishPolicy = new PolicyStatement({
-      actions: ['sns:Publish'],
-      resources: ['*'],
-    });
+    const saveUserDetails = () => {
+      console.log("Saved use details");
+    };
 
-    // Attach the permission policy to the Lambda function role 
-    createAuthChallengeLambda.role?.attachInlinePolicy(
-      new Policy(this, 'sns-publish-policy', {
-        statements: [snsPublishPolicy]
-      })
+    const signOut = () => {
+      if (user) {
+        Auth.signOut();
+        setUser(null);
+        setOtp('');
+        toast.success("You have logged out successfully");
+      } else {
+        setMessage("You are NOT logged in");
+      }
+    };
+
+    return (
+      <div className="container">
+        <ToastContainer />
+        <header className="d-flex justify-content-center py-3">
+          <ul className="nav nav-pills">
+            <li className="nav-item"><a href="#" className="nav-link active" aria-current="page">Personal Details</a></li>
+            <li className="nav-item"><a href="#" className="nav-link">Vehicle Details</a></li>
+            <li className="nav-item"><a href="#" className="nav-link" onClick={signOut}>Sign Out</a></li>
+          </ul>
+        </header>
+        <main className="form-signin w-100 m-auto">
+          {!user && !session && (
+            <form onSubmit={signIn}>
+              <h4 className="h3 mb-3 fw-normal">Login - Edited</h4>
+              <div className="form-floating mb-2">
+                <input
+                  type="text"
+                  className="form-control"
+                  id="floatingInput"
+                  placeholder="xxxxx"
+                  onChange={(event) => setNumber(event.target.value)} />
+                <label htmlFor="floatingInput">Phone Number (+94)</label>
+              </div>
+              <button className="w-100 btn btn-md btn-secondary" type="submit">Get OTP</button>
+            </form>
+          )}
+          {!user && session && (
+            <form onSubmit={verifyOtp}>
+              <h4 className="h3 mb-3 fw-normal">OTP</h4>
+              <div className="form-floating mb-2">
+                <input
+                  type="text"
+                  className="form-control"
+                  id="floatingInput"
+                  placeholder="xxxxx"
+                  onChange={(event) => setOtp(event.target.value)}
+                  value={otp}
+                />
+                <label htmlFor="floatingInput">Enter OTP</label>
+              </div>
+              <button className="w-100 btn btn-lg btn-secondary" type="submit">Confirm</button>
+            </form>
+          )}
+          {user && (
+            <form onSubmit={saveUserDetails}>
+              <h4 className="h3 mb-3 fw-normal">User Details</h4>
+              <div className="form-floating mb-2">
+                <input
+                  type="text"
+                  className="form-control"
+                  id="floatingInput"
+                  placeholder="xxxxx"
+                  onChange={(e) => setUserProfile({ ...userProfile, name: e.target.value })} />
+                <label htmlFor="floatingInput">Name</label>
+              </div>
+              <div className="form-floating mb-2">
+                <input
+                  type="text"
+                  className="form-control"
+                  id="floatingInput"
+                  placeholder="xxxxx"
+                  onChange={(e) => setUserProfile({ ...userProfile, nic: e.target.value })} />
+                <label htmlFor="floatingInput">NIC</label>
+              </div>
+              <div className="form-floating mb-2">
+                <input
+                  type="text"
+                  className="form-control"
+                  id="floatingInput"
+                  placeholder="xxxxx"
+                  onChange={(e) => setUserProfile({ ...userProfile, nic: e.target.value })} />
+                <label htmlFor="floatingInput">Address</label>
+              </div>
+              <button className="w-100 btn btn-lg btn-secondary" type="submit">Save</button>
+            </form>
+          )}
+        </main>
+      </div>
+
     );
-    ...
+  }
+  
+  export default App;
+
 ```
-
-9. Install ESBuild as a dev dependency to package typescript lambda code inside the `cdk` folder
-    `npm install --save-dev esbuild@0`
-
-
-10. Execute `npm run deploy` at the `fuelpass` folder and check if the lambda triggers are set at the cognito userpool
