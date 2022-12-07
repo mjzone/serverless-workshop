@@ -68,7 +68,8 @@
     };
 
 
-    const signIn = () => {
+    const signIn = (e) => {
+      e.preventDefault();
       toast.success("Verifying number (Country code +XX needed)");
       Auth.signIn(number)
         .then((result) => {
@@ -99,7 +100,8 @@
       return result;
     };
 
-    const verifyOtp = () => {
+    const verifyOtp = (e) => {
+      e.preventDefault();
       Auth.sendCustomChallengeAnswer(session, otp)
         .then((user) => {
           setUser(user);
@@ -113,7 +115,8 @@
         });
     };
 
-    const saveUserDetails = () => {
+    const saveUserDetails = (e) => {
+      e.preventDefault();
       console.log("Saved use details");
     };
 
@@ -124,7 +127,7 @@
         setOtp('');
         toast.success("You have logged out successfully");
       } else {
-        setMessage("You are NOT logged in");
+        toast.error("You are NOT logged in");
       }
     };
 
@@ -209,7 +212,7 @@
 
     );
   }
-  
+
   export default App;
 
 ```
