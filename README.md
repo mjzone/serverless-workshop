@@ -218,3 +218,5 @@
 ```
 
 3. Deploy the changes `npm run deploy` at the `fuelpass` folder
+
+4. Verify your phone number in the SNS console (Sandbox)
