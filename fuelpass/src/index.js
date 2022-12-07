@@ -30,6 +30,14 @@ Amplify.configure({
 
     // OPTIONAL - Manually set the authentication flow type. Default is 'USER_SRP_AUTH'
     authenticationFlowType: 'CUSTOM_AUTH'
+  },
+  API: {
+    endpoints: [
+      {
+        name: "UserAPI",
+        endpoint: "https://hz29jmxwq8.execute-api.us-east-1.amazonaws.com/prod"
+      }
+    ]
   }
 });
 

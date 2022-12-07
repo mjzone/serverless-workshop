@@ -11,10 +11,21 @@ function App() {
   const [number, setNumber] = useState('');
   const password = Math.random().toString(10) + 'Abc#';
   const [userProfile, setUserProfile] = useState({ name: "", nic: "", address: "" });
+  const userAPIName = "UserAPI";
+  const userRootPath = "/users";
 
   useEffect(() => {
     verifyAuth();
   }, []);
+
+  const getPayload = async (data = {}) => {
+    return {
+      body: data,
+      headers: {
+        Authorization: `Bearer ${(await Auth.currentSession()).getIdToken().getJwtToken()}`
+      }
+    };
+  }
 
   const verifyAuth = () => {
     Auth.currentAuthenticatedUser()
@@ -79,10 +90,19 @@ function App() {
       });
   };
 
-  const saveUserDetails = (e) => {
-    e.preventDefault();
-    console.log("Saved use details");
-  };
+  const saveUserDetails = async (e) => {
+    e.preventDefault(e);
+    try {
+      if (!userProfile.name || !userProfile.nic || !userProfile.address) {
+        return;
+      }
+      const payload = await getPayload(userProfile);
+      await API.post(userAPIName, userRootPath, payload);
+    } catch (err) {
+      toast.error(err.message);
+      console.log('error creating user profile:', err);
+    }
+  }
 
   const signOut = () => {
     if (user) {
@@ -165,7 +185,7 @@ function App() {
                 className="form-control"
                 id="floatingInput"
                 placeholder="xxxxx"
-                onChange={(e) => setUserProfile({ ...userProfile, nic: e.target.value })} />
+                onChange={(e) => setUserProfile({ ...userProfile, address: e.target.value })} />
               <label htmlFor="floatingInput">Address</label>
             </div>
             <button className="w-100 btn btn-lg btn-secondary" type="submit">Save</button>

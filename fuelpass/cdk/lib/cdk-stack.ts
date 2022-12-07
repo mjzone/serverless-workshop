@@ -1,8 +1,10 @@
 import * as cdk from 'aws-cdk-lib';
-import { CfnOutput } from 'aws-cdk-lib';
+import { CfnOutput, RemovalPolicy } from 'aws-cdk-lib';
+import { AuthorizationType, CognitoUserPoolsAuthorizer, Cors, LambdaRestApi } from 'aws-cdk-lib/aws-apigateway';
 import { Distribution } from 'aws-cdk-lib/aws-cloudfront';
 import { S3Origin } from 'aws-cdk-lib/aws-cloudfront-origins';
 import { UserPool } from 'aws-cdk-lib/aws-cognito';
+import { AttributeType, BillingMode, Table } from 'aws-cdk-lib/aws-dynamodb';
 import { Policy, PolicyStatement } from 'aws-cdk-lib/aws-iam';
 import { Runtime } from 'aws-cdk-lib/aws-lambda';
 import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
@@ -99,6 +101,53 @@ export class CdkStack extends cdk.Stack {
     const userPoolWebClient = userPool.addClient('UserPoolWebClient', {
       authFlows: { custom: true }
     });
+
+    // User dynamodb table
+    const userTable = new Table(this, "UserTable", {
+      partitionKey: { name: "id", type: AttributeType.STRING },
+      billingMode: BillingMode.PAY_PER_REQUEST,
+      removalPolicy: RemovalPolicy.DESTROY,
+    });
+
+    // User profile lambda
+    const userProfileLambda = new NodejsFunction(this, 'UserProfileLambda', {
+      entry: join(__dirname, `../functions/userProfile/handler.js`),
+      runtime: Runtime.NODEJS_14_X,
+      handler: "handler",
+      environment: {
+        USER_TABLE_NAME: userTable.tableName,
+      },
+    });
+    userTable.grantReadWriteData(userProfileLambda);
+
+    // UserPool Authorizer
+    const userPoolAuthorizer = new CognitoUserPoolsAuthorizer(this, 'UserPoolAuthorizer', {
+      cognitoUserPools: [userPool]
+    });
+
+    // REST API with ApiGateway for user profile management
+    const userProfileAPI = new LambdaRestApi(this, "UserProfileAPI", {
+      restApiName: "Fuelpass API",
+      handler: userProfileLambda,
+      proxy: false,
+      defaultMethodOptions: {
+        authorizationType: AuthorizationType.COGNITO,
+        authorizer: userPoolAuthorizer
+      },
+      defaultCorsPreflightOptions: {
+        allowOrigins: ["*"],
+        allowMethods: Cors.ALL_METHODS
+      }
+    });
+
+    // Create user path: /users
+    const users = userProfileAPI.root.addResource("users");
+    users.addMethod("POST");
+
+    // Get user and update user paths: /users/{userId}
+    const singleUser = users.addResource("{userId}");
+    singleUser.addMethod("GET");
+    singleUser.addMethod("PUT");
 
     // Outputs
     new CfnOutput(this, 'CloudFrontDomain', {

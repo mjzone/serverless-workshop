@@ -1,224 +1,234 @@
-## Step 04 - Manual configure Auth category in the Frontend
+## Step 05 - Implement user details CRUD operations
 
-1. Under `fuelpass` folder install `aws-amplify` javascript library
-  ```sh
-     npm install aws-amplify
+1. In the `cdk` folder update the `cdk-stack.ts` as follows
+  ```typescript
+     ...
+      // User dynamodb table
+      const userTable = new Table(this, "UserTable", {
+        partitionKey: { name: "id", type: AttributeType.STRING },
+        billingMode: BillingMode.PAY_PER_REQUEST,
+        removalPolicy: RemovalPolicy.DESTROY,
+      });
+
+      // User profile lambda
+      const userProfileLambda = new NodejsFunction(this, 'UserProfileLambda', {
+        entry: join(__dirname, `../functions/userProfile/handler.js`),
+        runtime: Runtime.NODEJS_14_X,
+        handler: "handler",
+        environment: {
+          USER_TABLE_NAME: userTable.tableName,
+        },
+      });
+      userTable.grantReadWriteData(userProfileLambda);
+
+      // UserPool Authorizer
+      const userPoolAuthorizer = new CognitoUserPoolsAuthorizer(this, 'UserPoolAuthorizer', {
+        cognitoUserPools: [userPool]
+      });
+
+      // REST API with ApiGateway for user profile management
+      const userProfileAPI = new LambdaRestApi(this, "UserProfileAPI", {
+        restApiName: "Fuel App API",
+        handler: userProfileLambda,
+        proxy: false,
+        defaultMethodOptions: {
+          authorizationType: AuthorizationType.COGNITO,
+          authorizer: userPoolAuthorizer
+        },
+        defaultCorsPreflightOptions: {
+          allowOrigins: [ "*" ],
+          allowMethods: Cors.ALL_METHODS
+        }
+      });
+
+      // Create user path: /users
+      const users = userProfileAPI.root.addResource("users");
+      users.addMethod("POST");
+
+      // Get user and update user paths: /users/{userId}
+      const singleUser = users.addResource("{userId}");
+      singleUser.addMethod("GET");
+      singleUser.addMethod("PUT");
+    ...
+
   ```
-2. Go to `fuelpass/src/index.js`
-```typescript
-  ...
-  import { Amplify } from 'aws-amplify';
 
+2. Create a new folder inside the `functions` folder called `userProfile`. Add `handler.ts` file in that folder
+
+3. Add the following code to `handler.ts` file
+  ```typescript
+  import { updateUser, createUser, getUserById } from "./lib/users";
+
+  exports.handler = async (event: any) => {
+    let output, statusCode;
+    try {
+      switch (event.httpMethod) {
+        case "GET":
+          if (event.pathParameters && event.pathParameters.userId) {
+            output = await getUserById(event);
+          }
+          break;
+        case "POST":
+          if (event.path === "/users") {
+            output = await createUser(event);
+          }
+          break;
+        case "PUT":
+          if (event.pathParameters && event.pathParameters.userId) {
+            output = await updateUser(event);
+          }
+          break;
+        default:
+          throw new Error(`Unsupported operation: "${event.httpMethod}"`);
+      }
+      console.log(output);
+      return {
+        statusCode,
+        headers: {
+          "Access-Control-Allow-Origin": "*"
+        },
+        body: JSON.stringify({
+          message: `Successfully finished operation: "${event.httpMethod}"`,
+          body: output,
+        }),
+      };
+    } catch (err: any) {
+      console.error(err);
+      return {
+        statusCode: 500,
+        headers: {
+          "Access-Control-Allow-Origin": "*"
+        },
+        body: JSON.stringify({
+          message: `Failed to perform operation`,
+          errorMsg: err.message,
+        }),
+      };
+    }
+  };
+
+  ```
+
+4. Create a sub-folder called `lib` inside the `userProfile` folder and add new file called `users.ts` that contains the CRUD operation runtime code for user details. Add the following code in the `users.ts` file. 
+
+```typescript
+  const DynamoDB = require("aws-sdk/clients/dynamodb");
+  const docClient = new DynamoDB.DocumentClient();
+  const USER_TABLE_NAME = process.env.USER_TABLE_NAME;
+
+  export async function getUserById(event: any) {
+    const userId = event.pathParameters.userId;
+    const params = {
+      TableName: USER_TABLE_NAME,
+      Key: {
+        id: userId,
+      },
+    };
+    try {
+      let output = await docClient.get(params).promise();
+      return output;
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  export async function createUser(event: any) {
+    const body = JSON.parse(event.body);
+    console.log(JSON.stringify(event));
+    body.id = event.requestContext.authorizer.claims.sub;
+    body.phone = event.requestContext.authorizer.claims.phone_number;
+
+    const params = {
+      TableName: USER_TABLE_NAME,
+      Item: body,
+      ConditionExpression: "attribute_not_exists(id)"
+    };
+    try {
+      let output = await docClient.put(params).promise();
+      return output;
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  export async function updateUser(event: any) {
+    const userId = event.pathParameters.userId;
+    const body = JSON.parse(event.body);
+    const params = {
+      TableName: USER_TABLE_NAME,
+      Key: {
+        id: userId,
+      },
+      UpdateExpression: "set #name = :name, #nic = :nic, #address = :address",
+      ExpressionAttributeNames: {
+        "#name": "name",
+        "#nic": "nic",
+        "#address": "address"
+      },
+      ExpressionAttributeValues: {
+        ":name": body.name,
+        ":nic": body.nic,
+        ":address": body.address
+      },
+      ConditionExpression: "attribute_exists(id)",
+    };
+    try {
+      let output = await docClient.update(params).promise();
+      return output;
+    } catch (err) {
+      throw err;
+    }
+  };
+
+```
+
+5. Deploy with `npm run deploy`
+
+6. Update the `src/index.js` with the `API` configurations
+```javascript
   // Manually configure amplify 
   Amplify.configure({
-    Auth: {
-      // REQUIRED - Amazon Cognito Region
-      region: 'us-east-1',
-
-      // OPTIONAL - Amazon Cognito User Pool ID
-      userPoolId: '<userpool_id>',
-
-      // OPTIONAL - Amazon Cognito Web Client ID (26-char alphanumeric string)
-      userPoolWebClientId: '<userpool_client_id>',
-
-      // OPTIONAL - Enforce user authentication prior to accessing AWS resources or not
-      mandatorySignIn: true,
-
-      // OPTIONAL - This is used when autoSignIn is enabled for Auth.signUp
-      // 'code' is used for Auth.confirmSignUp, 'link' is used for email link verification
-      signUpVerificationMethod: 'code', // 'code' | 'link' 
-
-      // OPTIONAL - Manually set the authentication flow type. Default is 'USER_SRP_AUTH'
-      authenticationFlowType: 'CUSTOM_AUTH'
+    Auth: { ... },
+    API: {
+      endpoints: [
+        {
+          name: "UserAPI",
+          endpoint: "<endpoint>"
+        }
+      ]
     }
   });
 ```
 
-3. Goto `fuelpass/src/App.js` and update the code as follows
-```javascript
-  import './App.css';
-  import 'react-toastify/dist/ReactToastify.css';
-  import React, { useState, useEffect } from 'react';
-  import { ToastContainer, toast } from 'react-toastify';
-  import { Auth, API } from "aws-amplify";
+7. Update the `src/App.js` as follows
+  ```javascript
+  ...
+    const userAPIName = "UserAPI";
+    const userRootPath = "/users";
 
-  function App() {
-    const [user, setUser] = useState(null);
-    const [session, setSession] = useState(null);
-    const [otp, setOtp] = useState('');
-    const [number, setNumber] = useState('');
-    const password = Math.random().toString(10) + 'Abc#';
-    const [userProfile, setUserProfile] = useState({ name: "", nic: "", address: "" });
+    const getPayload = async (data = {}) => {
+      return {
+        body: data,
+        headers: {
+          Authorization: `Bearer ${(await Auth.currentSession()).getIdToken().getJwtToken()}`
+        }
+      };
+    }
 
-    useEffect(() => {
-      verifyAuth();
-    }, []);
-
-    const verifyAuth = () => {
-      Auth.currentAuthenticatedUser()
-        .then((user) => {
-          setUser(user);
-          setSession(null);
-          toast.success("You have logged in successfully");
-        })
-        .catch((err) => {
-          console.error(err);
-          toast.error("You are NOT logged in");
-        });
-    };
-
-
-    const signIn = (e) => {
-      if (e) {
-        e.preventDefault();
-        toast.success("Verifying number (Country code +XX needed)");
-      }
-      Auth.signIn(number)
-        .then((result) => {
-          setSession(result);
-          toast("Enter OTP number");
-        })
-        .catch((err) => {
-          if (err.code === 'UserNotFoundException') {
-            signUp();
-          } else if (err.code === 'UsernameExistsException') {
-            toast("Enter OTP number");
-            signIn();
-          } else {
-            console.log(err.code);
-            console.error(err);
-          }
-        });
-    };
-
-    const signUp = async () => {
-      await Auth.signUp({
-        username: number,
-        password,
-        attributes: {
-          phone_number: number,
-        },
-      });
-      signIn();
-    };
-
-    const verifyOtp = (e) => {
+    const saveUserDetails = async (e) => {
       e.preventDefault();
-      Auth.sendCustomChallengeAnswer(session, otp)
-        .then((user) => {
-          setUser(user);
-          setSession(null);
-          toast.success("You have logged in successfully");
-        })
-        .catch((err) => {
-          setOtp('');
-          console.log(err);
-          toast.error(err.message);
-        });
-    };
-
-    const saveUserDetails = (e) => {
-      e.preventDefault();
-      console.log("Saved use details");
-    };
-
-    const signOut = () => {
-      if (user) {
-        Auth.signOut();
-        setUser(null);
-        setOtp('');
-        toast.success("You have logged out successfully");
-      } else {
-        toast.error("You are NOT logged in");
+      try {
+        if (!userProfile.name || !userProfile.nic || !userProfile.address) {
+          return;
+        }
+        const payload = await getPayload(userProfile);
+        await API.post(userAPIName, userRootPath, payload);
+      } catch (err) {
+        toast.error(err.message);
+        console.log('error creating user profile:', err);
       }
-    };
+    }
+  ...
 
-    return (
-      <div className="container">
-        <ToastContainer />
-        <header className="d-flex justify-content-center py-3">
-          <ul className="nav nav-pills">
-            <li className="nav-item"><a href="#" className="nav-link active" aria-current="page">Personal Details</a></li>
-            <li className="nav-item"><a href="#" className="nav-link">Vehicle Details</a></li>
-            <li className="nav-item"><a href="#" className="nav-link" onClick={signOut}>Sign Out</a></li>
-          </ul>
-        </header>
-        <main className="form-signin w-100 m-auto">
-          {!user && !session && (
-            <form onSubmit={signIn}>
-              <h4 className="h3 mb-3 fw-normal">Login - Edited</h4>
-              <div className="form-floating mb-2">
-                <input
-                  type="text"
-                  className="form-control"
-                  id="floatingInput"
-                  placeholder="xxxxx"
-                  onChange={(event) => setNumber(event.target.value)} />
-                <label htmlFor="floatingInput">Phone Number (+94)</label>
-              </div>
-              <button className="w-100 btn btn-md btn-secondary" type="submit">Get OTP</button>
-            </form>
-          )}
-          {!user && session && (
-            <form onSubmit={verifyOtp}>
-              <h4 className="h3 mb-3 fw-normal">OTP</h4>
-              <div className="form-floating mb-2">
-                <input
-                  type="text"
-                  className="form-control"
-                  id="floatingInput"
-                  placeholder="xxxxx"
-                  onChange={(event) => setOtp(event.target.value)}
-                  value={otp}
-                />
-                <label htmlFor="floatingInput">Enter OTP</label>
-              </div>
-              <button className="w-100 btn btn-lg btn-secondary" type="submit">Confirm</button>
-            </form>
-          )}
-          {user && (
-            <form onSubmit={saveUserDetails}>
-              <h4 className="h3 mb-3 fw-normal">User Details</h4>
-              <div className="form-floating mb-2">
-                <input
-                  type="text"
-                  className="form-control"
-                  id="floatingInput"
-                  placeholder="xxxxx"
-                  onChange={(e) => setUserProfile({ ...userProfile, name: e.target.value })} />
-                <label htmlFor="floatingInput">Name</label>
-              </div>
-              <div className="form-floating mb-2">
-                <input
-                  type="text"
-                  className="form-control"
-                  id="floatingInput"
-                  placeholder="xxxxx"
-                  onChange={(e) => setUserProfile({ ...userProfile, nic: e.target.value })} />
-                <label htmlFor="floatingInput">NIC</label>
-              </div>
-              <div className="form-floating mb-2">
-                <input
-                  type="text"
-                  className="form-control"
-                  id="floatingInput"
-                  placeholder="xxxxx"
-                  onChange={(e) => setUserProfile({ ...userProfile, nic: e.target.value })} />
-                <label htmlFor="floatingInput">Address</label>
-              </div>
-              <button className="w-100 btn btn-lg btn-secondary" type="submit">Save</button>
-            </form>
-          )}
-        </main>
-      </div>
-
-    );
-  }
-
-  export default App;
-
-```
-
-3. Deploy the changes `npm run deploy` at the `fuelpass` folder
-
-4. Verify your phone number in the SNS console (Sandbox)
+  ```
+8. Deploy again and test user saving feature. `npm run deploy`
