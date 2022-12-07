@@ -69,35 +69,37 @@
 
 
     const signIn = (e) => {
-      e.preventDefault();
-      toast.success("Verifying number (Country code +XX needed)");
+      if (e) {
+        e.preventDefault();
+        toast.success("Verifying number (Country code +XX needed)");
+      }
       Auth.signIn(number)
         .then((result) => {
           setSession(result);
           toast("Enter OTP number");
         })
-        .catch((e) => {
-          if (e.code === 'UserNotFoundException') {
+        .catch((err) => {
+          if (err.code === 'UserNotFoundException') {
             signUp();
-          } else if (e.code === 'UsernameExistsException') {
+          } else if (err.code === 'UsernameExistsException') {
             toast("Enter OTP number");
             signIn();
           } else {
-            console.log(e.code);
-            console.error(e);
+            console.log(err.code);
+            console.error(err);
           }
         });
     };
 
     const signUp = async () => {
-      const result = await Auth.signUp({
+      await Auth.signUp({
         username: number,
         password,
         attributes: {
           phone_number: number,
         },
-      }).then(() => signIn());
-      return result;
+      });
+      signIn();
     };
 
     const verifyOtp = (e) => {

@@ -31,8 +31,10 @@ function App() {
 
 
   const signIn = (e) => {
-    e && e.preventDefault();
-    toast.success("Verifying number (Country code +XX needed)");
+    if (e) {
+      e.preventDefault();
+      toast.success("Verifying number (Country code +XX needed)");
+    }
     Auth.signIn(number)
       .then((result) => {
         setSession(result);
